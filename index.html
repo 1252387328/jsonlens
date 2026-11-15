@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>jsonlens</title>
+<meta name="description" content="Format, validate, explore and query JSON entirely in your browser.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔍</text></svg>">
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #1b1f24; --muted: #66707c; --line: #e1e4e8;
+    --accent: #2457c5; --accent-soft: #e7eefc; --err: #b42318; --err-soft: #fdecea;
+    --k: #8a3ffc; --s: #0b7a3e; --n: #b45309; --b: #2457c5; --null: #66707c;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1216; --panel: #161a20; --ink: #e6e9ee; --muted: #8b95a3; --line: #262c35;
+      --accent: #7aa2ff; --accent-soft: #1b2540; --err: #ff8a80; --err-soft: #3a1d1b;
+      --k: #c4a1ff; --s: #7ddc9f; --n: #f7b267; --b: #7aa2ff; --null: #8b95a3;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1216; --panel: #161a20; --ink: #e6e9ee; --muted: #8b95a3; --line: #262c35;
+    --accent: #7aa2ff; --accent-soft: #1b2540; --err: #ff8a80; --err-soft: #3a1d1b;
+    --k: #c4a1ff; --s: #7ddc9f; --n: #f7b267; --b: #7aa2ff; --null: #8b95a3;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; display: flex; flex-direction: column; }
+  header { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line);
+           background: var(--panel); flex-wrap: wrap; }
+  h1 { font: 600 20px var(--mono); margin: 0 8px 0 0; letter-spacing: -0.02em; }
+  h1 span { color: var(--accent); }
+  .tools { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  button, select { font: inherit; font-size: 13px; padding: 5px 10px; border-radius: 8px; border: 1px solid var(--line);
+                   background: var(--panel); color: var(--ink); cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: var(--panel); border-color: var(--accent); }
+  label.chk { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
+  main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
+  .pane { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+  .pane + .pane { border-left: 1px solid var(--line); }
+  .bar { display: flex; align-items: center; gap: 8px; padding: 8px 16px; font-size: 12px; color: var(--muted);
+         border-bottom: 1px solid var(--line); min-height: 40px; flex-wrap: wrap; }
+  .bar .tabs button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  textarea { flex: 1; resize: none; border: 0; outline: none; padding: 14px 16px; background: transparent; color: var(--ink);
+             font: 13px/1.55 var(--mono); tab-size: 2; min-height: 260px; }
+  #out { flex: 1; overflow: auto; padding: 12px 16px; font: 13px/1.6 var(--mono); min-height: 260px; }
+  #out pre { margin: 0; white-space: pre-wrap; word-break: break-word; }
+  .err { margin: 12px 16px; padding: 10px 12px; border-radius: 8px; background: var(--err-soft); color: var(--err);
+         font-size: 13px; }
+  .err code { font-family: var(--mono); display: block; margin-top: 6px; white-space: pre; overflow-x: auto; }
+  .k { color: var(--k); } .s { color: var(--s); } .n { color: var(--n); } .b { color: var(--b); } .null { color: var(--null); }
+  .tree details { margin-left: 16px; }
+  .tree > details { margin-left: 0; }
+  .tree summary { cursor: pointer; list-style: none; border-radius: 4px; }
+  .tree summary::-webkit-details-marker { display: none; }
+  .tree summary::before { content: "▸"; display: inline-block; width: 14px; color: var(--muted); }
+  .tree details[open] > summary::before { content: "▾"; }
+  .tree .leaf { margin-left: 30px; border-radius: 4px; }
+  .tree .hint { color: var(--muted); font-size: 12px; }
+  .tree summary:hover, .tree .leaf:hover { background: var(--accent-soft); }
+  .tree [data-path] { cursor: pointer; }
+  #q { flex: 1; min-width: 160px; font: 13px var(--mono); padding: 5px 10px; border-radius: 8px; border: 1px solid var(--line);
+       background: var(--bg); color: var(--ink); }
+  .stats { margin-left: auto; }
+  @media (max-width: 760px) {
+    main { grid-template-columns: 1fr; }
+    .pane + .pane { border-left: 0; border-top: 1px solid var(--line); }
+    .stats { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>json<span>lens</span></h1>
+  <div class="tools">
+    <button class="primary" id="fmt">Format</button>
+    <button id="min">Minify</button>
+    <select id="indent" aria-label="indent">
+      <option value="2">2 spaces</option><option value="4">4 spaces</option><option value="tab">tabs</option>
+    </select>
+    <label class="chk"><input type="checkbox" id="sort"> sort keys</label>
+    <button id="copy">Copy</button>
+    <button id="sample">Sample</button>
+  </div>
+</header>
+<main>
+  <section class="pane">
+    <div class="bar"><span>Input</span><span id="size" class="stats"></span></div>
+    <textarea id="in" spellcheck="false" placeholder="Paste JSON here…" aria-label="JSON input"></textarea>
+  </section>
+  <section class="pane">
+    <div class="bar">
+      <span class="tabs"><button data-view="tree" aria-pressed="true">Tree</button> <button data-view="text" aria-pressed="false">Text</button></span>
+      <input id="q" placeholder="$.path[*].to.query" aria-label="path query" spellcheck="false">
+      <span id="stats" class="stats"></span>
+    </div>
+    <div id="out"></div>
+  </section>
+</main>
+<script type="module">
+import { parse, format, minify, query, childPath, stats, sortKeys, JsonError } from './src/jsonlens.js';
+
+const $ = (id) => document.getElementById(id);
+const input = $('in'), out = $('out'), q = $('q');
+let view = 'tree';
+let data, ok = false;
+
+const SAMPLE = {
+  store: {
+    name: 'Corner Books', open: true, rating: 4.7, manager: null,
+    books: [
+      { title: 'The Pragmatic Programmer', year: 1999, tags: ['craft', 'career'] },
+      { title: 'Designing Data-Intensive Applications', year: 2017, tags: ['databases', 'distributed'] },
+      { title: 'Crafting Interpreters', year: 2021, tags: ['languages'] },
+    ],
+    'opening hours': { mon: '9-18', sat: '10-14' },
+  },
+};
+
+const esc = (s) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+const indentValue = () => ($('indent').value === 'tab' ? '\t' : Number($('indent').value));
+
+function highlight(json) {
+  return esc(json).replace(
+    /("(?:\\.|[^"\\])*")(\s*:)?|\b(true|false)\b|\bnull\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g,
+    (m, str, colon, bool) => {
+      if (str) return colon ? `<span class="k">${str}</span>${colon}` : `<span class="s">${str}</span>`;
+      if (bool) return `<span class="b">${m}</span>`;
+      if (m === 'null') return `<span class="null">${m}</span>`;
+      return `<span class="n">${m}</span>`;
+    });
+}
+
+function scalar(v) {
+  if (v === null) return '<span class="null">null</span>';
+  if (typeof v === 'string') return `<span class="s">${esc(JSON.stringify(v))}</span>`;
+  if (typeof v === 'number') return `<span class="n">${v}</span>`;
+  return `<span class="b">${v}</span>`;
+}
+
+function node(key, v, path, depth) {
+  const label = key === null ? '' : `<span class="k" data-path="${esc(path)}">${esc(typeof key === 'number' ? String(key) : JSON.stringify(key))}</span>: `;
+  if (v && typeof v === 'object') {
+    const isArr = Array.isArray(v);
+    const entries = isArr ? v.map((x, i) => [i, x]) : Object.entries(v);
+    const d = document.createElement('details');
+    d.open = depth < 2;
+    d.innerHTML = `<summary>${label}${isArr ? '[' : '{'}<span class="hint"> ${entries.length} ${isArr ? 'items' : 'keys'} </span>${isArr ? ']' : '}'}</summary>`;
+    let filled = false;
+    const fill = () => {
+      if (filled) return;
+      filled = true;
+      for (const [k, x] of entries) d.append(node(k, x, childPath(path, k), depth + 1));
+    };
+    if (d.open) fill(); else d.addEventListener('toggle', fill, { once: true });
+    return d;
+  }
+  const div = document.createElement('div');
+  div.className = 'leaf';
+  div.innerHTML = label + scalar(v);
+  return div;
+}
+
+function render() {
+  const text = input.value;
+  $('size').textContent = text ? `${new Blob([text]).size.toLocaleString()} bytes` : '';
+  out.innerHTML = '';
+  $('stats').textContent = '';
+  if (!text.trim()) { ok = false; return; }
+  try {
+    data = parse(text);
+    ok = true;
+  } catch (e) {
+    ok = false;
+    if (!(e instanceof JsonError)) throw e;
+    const lineText = text.split('\n')[e.line - 1] ?? '';
+    const box = document.createElement('div');
+    box.className = 'err';
+    box.innerHTML = `<b>Invalid JSON:</b> ${esc(e.message)}<code>${esc(lineText)}\n${' '.repeat(Math.max(0, e.column - 1))}^</code>`;
+    out.append(box);
+    return;
+  }
+
+  let shown = $('sort').checked ? sortKeys(data) : data;
+  let label = '';
+  if (q.value.trim()) {
+    try {
+      const hits = query(shown, q.value);
+      label = `${hits.length} match${hits.length === 1 ? '' : 'es'} · `;
+      shown = hits.length === 1 ? hits[0] : hits;
+    } catch (err) {
+      label = `${err.message} · `;
+    }
+  }
+  const s = stats(data);
+  $('stats').textContent = `${label}${s.keys} keys · depth ${s.depth}`;
+
+  if (view === 'text') {
+    const pre = document.createElement('pre');
+    pre.innerHTML = highlight(format(shown, { indent: indentValue() }));
+    out.append(pre);
+  } else {
+    const tree = document.createElement('div');
+    tree.className = 'tree';
+    tree.append(node(null, shown, q.value.trim() ? '$' : '$', 0));
+    out.append(tree);
+  }
+}
+
+out.addEventListener('click', (e) => {
+  const p = e.target.closest('[data-path]');
+  if (p && !q.value.trim()) { q.value = p.dataset.path; render(); }
+});
+$('fmt').onclick = () => { if (ok) { input.value = format(data, { indent: indentValue(), sort: $('sort').checked }); render(); } };
+$('min').onclick = () => { if (ok) { input.value = minify($('sort').checked ? sortKeys(data) : data); render(); } };
+$('copy').onclick = async () => {
+  const text = ok ? format($('sort').checked ? sortKeys(data) : data, { indent: indentValue() }) : input.value;
+  try { await navigator.clipboard.writeText(text); $('copy').textContent = 'Copied'; } catch { $('copy').textContent = 'Copy failed'; }
+  setTimeout(() => { $('copy').textContent = 'Copy'; }, 1200);
+};
+$('sample').onclick = () => { input.value = JSON.stringify(SAMPLE, null, 2); render(); };
+document.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => {
+  view = b.dataset.view;
+  document.querySelectorAll('[data-view]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  render();
+}));
+let timer;
+input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(render, 150); });
+q.addEventListener('input', render);
+$('sort').addEventListener('change', render);
+$('indent').addEventListener('change', render);
+input.addEventListener('keydown', (e) => {
+  if (e.key === 'Tab') { e.preventDefault(); input.setRangeText('  ', input.selectionStart, input.selectionEnd, 'end'); }
+});
+input.value = JSON.stringify(SAMPLE, null, 2);
+render();
+</script>
+</body>
+</html>

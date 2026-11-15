@@ -1,0 +1,16 @@
+{
+  "name": "jsonlens",
+  "version": "0.1.0",
+  "description": "Format, validate, explore and query JSON in the browser, with precise error locations.",
+  "type": "module",
+  "main": "src/jsonlens.js",
+  "exports": "./src/jsonlens.js",
+  "files": ["src"],
+  "scripts": {
+    "test": "node --test",
+    "start": "python3 -m http.server 8000"
+  },
+  "keywords": ["json", "formatter", "validator", "viewer", "jsonpath"],
+  "license": "MIT",
+  "engines": { "node": ">=18" }
+}
